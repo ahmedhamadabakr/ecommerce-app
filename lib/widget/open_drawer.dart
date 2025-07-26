@@ -11,44 +11,75 @@ class OpenDrawer extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          DrawerHeader(
+          Container(
+            height: 250, // تكبير المساحة
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Colors.blue, Colors.blue.shade700],
+                colors: [
+                  Colors.blue,
+                  Colors.blue.shade700,
+                  Colors.blue.shade900,
+                ],
               ),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                
                 // Profile Picture
                 CircleAvatar(
                   radius: 40,
                   backgroundColor: Colors.white,
-                  backgroundImage: AssetImage(
-                    'assets/15.png',
-                  ), // Using existing image from assets
+                  backgroundImage: AssetImage('assets/15.png'),
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
+                      border: Border.all(color: Colors.white, width: 4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
                     ),
                   ),
                 ),
+                SizedBox(height: 15), // مساحة أكبر بين الصورة والنص
                 // User Name
                 Text(
                   "wellcome",
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: 22, // تكبير الخط
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                SizedBox(height: 5),
                 Text(
                   "Ahmed",
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 18, // تكبير الخط
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    "Active Member",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
               ],
             ),
