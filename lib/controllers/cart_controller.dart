@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecommerce_store/services/api_service.dart';
 import 'package:ecommerce_store/controllers/auth_controller.dart';
+
 import 'package:ecommerce_store/constent.dart';
 
 class CartItem {
@@ -42,7 +45,7 @@ class CartItem {
 
 class CartController extends GetxController {
   final ApiService _apiService = ApiService();
-  
+
   var cartItems = <CartItem>[].obs;
   var loading = false.obs;
   var error = ''.obs;
@@ -50,26 +53,18 @@ class CartController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // Initialize API service
     _apiService.init();
-    
-    // Wait for AuthController to be available and then check authentication status
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      try {
-        final authController = Get.find<AuthController>();
-        // Check authentication status and fetch cart
-        fetchCart();
-      } catch (e) {
-        print('AuthController not found yet, will retry later');
-        // Retry after a short delay
-        Future.delayed(Duration(milliseconds: 100), () {
-          onInit();
-        });
-      }
-    });
   }
 
-  // Fetch cart from backend
+  @override
+  void onReady() {
+    super.onReady();
+    final authController = Get.find<AuthController>();
+    if (authController.isAuthenticated.value) {
+      fetchCart();
+    }
+  }
+
   Future<void> fetchCart() async {
     final authController = Get.find<AuthController>();
     if (!authController.isAuthenticated.value) {
@@ -80,10 +75,10 @@ class CartController extends GetxController {
     try {
       loading.value = true;
       error.value = '';
-      
+
       final response = await _apiService.getCart();
       final cartData = response.data;
-      
+
       if (cartData['items'] != null) {
         cartItems.value = (cartData['items'] as List)
             .map((item) => CartItem.fromJson(item))
@@ -92,27 +87,24 @@ class CartController extends GetxController {
         cartItems.clear();
       }
     } catch (e) {
-      error.value = 'Failed to fetch cart';
-      cartItems.clear();
-      print('Error fetching cart: $e');
+      // If cart API fails, load from local storage instead
+      if (e.toString().contains('401')) {
+        print('⚠️ Cart API unavailable, using local cart storage');
+        await _loadLocalCart();
+        error.value = '';
+      } else {
+        error.value = 'Failed to fetch cart';
+        cartItems.clear();
+        print('Error fetching cart: $e');
+      }
     } finally {
       loading.value = false;
     }
   }
 
-  // Add product to cart
   Future<void> addToCart(String productId, {int quantity = 1}) async {
-    print('=== ADD TO CART DEBUG START ===');
-    print('Product ID: $productId');
-    print('Quantity: $quantity');
-    
     final authController = Get.find<AuthController>();
-    print('AuthController found: ${authController != null}');
-    print('Is authenticated: ${authController.isAuthenticated.value}');
-    print('Current token: ${authController.token.value}');
-    
     if (!authController.isAuthenticated.value) {
-      print('User not authenticated, redirecting to login');
       error.value = 'يجب تسجيل الدخول أولاً';
       Get.snackbar(
         'مطلوب تسجيل الدخول',
@@ -125,24 +117,19 @@ class CartController extends GetxController {
       return;
     }
 
-    print('Adding to cart with token: ${authController.token.value}');
-    print('User authenticated: ${authController.isAuthenticated.value}');
-
     try {
       loading.value = true;
       error.value = '';
-      
-      print('Making API call to add to cart...');
+
       final response = await _apiService.addToCart(productId, quantity);
-      print('API call successful: ${response.statusCode}');
       final cartData = response.data;
-      
+
       if (cartData['items'] != null) {
         cartItems.value = (cartData['items'] as List)
             .map((item) => CartItem.fromJson(item))
             .toList();
       }
-      
+
       Get.snackbar(
         'Success',
         'تم إضافة المنتج إلى السلة',
@@ -151,18 +138,27 @@ class CartController extends GetxController {
         colorText: Colors.white,
       );
     } catch (e) {
-      print('=== ADD TO CART ERROR ===');
-      print('Error type: ${e.runtimeType}');
-      print('Error message: $e');
-      error.value = 'Failed to add product to cart';
-      print('Error adding to cart: $e');
+      if (e.toString().contains('401')) {
+        // API cart failed, use local cart instead
+        print('⚠️ Cart API failed, using local cart for product: $productId');
+        await _addToLocalCart(productId, quantity);
+        error.value = '';
+      } else {
+        error.value = 'Failed to add product to cart';
+        Get.snackbar(
+          'خطأ',
+          'فشل في إضافة المنتج للسلة',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        print('Error adding to cart: $e');
+      }
     } finally {
       loading.value = false;
-      print('=== ADD TO CART DEBUG END ===');
     }
   }
 
-  // Update product quantity in cart
   Future<void> updateQuantity(String productId, int quantity) async {
     final authController = Get.find<AuthController>();
     if (!authController.isAuthenticated.value) {
@@ -186,24 +182,30 @@ class CartController extends GetxController {
     try {
       loading.value = true;
       error.value = '';
-      
+
       final response = await _apiService.updateCartItem(productId, quantity);
       final cartData = response.data;
-      
+
       if (cartData['items'] != null) {
         cartItems.value = (cartData['items'] as List)
             .map((item) => CartItem.fromJson(item))
             .toList();
       }
     } catch (e) {
-      error.value = 'Failed to update quantity';
-      print('Error updating quantity: $e');
+      if (e.toString().contains('401')) {
+        // API failed, update local cart instead
+        print('⚠️ API unavailable, updating local cart for product: $productId');
+        await _updateLocalCartQuantity(productId, quantity);
+        error.value = '';
+      } else {
+        error.value = 'Failed to update quantity';
+        print('Error updating quantity: $e');
+      }
     } finally {
       loading.value = false;
     }
   }
 
-  // Remove product from cart
   Future<void> removeFromCart(String productId) async {
     final authController = Get.find<AuthController>();
     if (!authController.isAuthenticated.value) {
@@ -222,16 +224,16 @@ class CartController extends GetxController {
     try {
       loading.value = true;
       error.value = '';
-      
+
       final response = await _apiService.removeFromCart(productId);
       final cartData = response.data;
-      
+
       if (cartData['items'] != null) {
         cartItems.value = (cartData['items'] as List)
             .map((item) => CartItem.fromJson(item))
             .toList();
       }
-      
+
       Get.snackbar(
         'Success',
         'Product removed from cart',
@@ -240,14 +242,27 @@ class CartController extends GetxController {
         colorText: Colors.white,
       );
     } catch (e) {
-      error.value = 'Failed to remove product from cart';
-      print('Error removing from cart: $e');
+      if (e.toString().contains('401')) {
+        // API failed, remove from local cart instead
+        print('⚠️ API unavailable, removing from local cart for product: $productId');
+        await _removeFromLocalCart(productId);
+        error.value = '';
+        Get.snackbar(
+          'Success',
+          'Product removed from cart',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      } else {
+        error.value = 'Failed to remove product from cart';
+        print('Error removing from cart: $e');
+      }
     } finally {
       loading.value = false;
     }
   }
 
-  // Clear entire cart
   Future<void> clearCart() async {
     final authController = Get.find<AuthController>();
     if (!authController.isAuthenticated.value) {
@@ -266,10 +281,10 @@ class CartController extends GetxController {
     try {
       loading.value = true;
       error.value = '';
-      
+
       await _apiService.clearCart();
       cartItems.clear();
-      
+
       Get.snackbar(
         'Success',
         'Cart cleared',
@@ -285,28 +300,23 @@ class CartController extends GetxController {
     }
   }
 
-  // Calculate total items in cart
   int get itemCount {
     return cartItems.fold(0, (total, item) => total + item.quantity);
   }
 
-  // Calculate total price
   double get totalPrice {
     return cartItems.fold(0.0, (total, item) => total + (item.price * item.quantity));
   }
 
-  // Check if product is in cart
   bool isInCart(String productId) {
     return cartItems.any((item) => item.id == productId);
   }
 
-  // Get product quantity in cart
   int getProductQuantity(String productId) {
     final item = cartItems.firstWhereOrNull((item) => item.id == productId);
     return item?.quantity ?? 0;
   }
 
-  // Set authentication status
   void setAuthenticationStatus(bool status) {
     if (status) {
       fetchCart();
@@ -315,8 +325,110 @@ class CartController extends GetxController {
     }
   }
 
-  // Refresh cart
   Future<void> refreshCart() async {
     await fetchCart();
   }
-} 
+
+  // Local cart storage methods
+  Future<void> _loadLocalCart() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cartJson = prefs.getString('local_cart');
+      if (cartJson != null) {
+        final List<dynamic> cartList = jsonDecode(cartJson);
+        cartItems.value = cartList.map((item) => CartItem.fromJson(item)).toList();
+        print('🛒 Loaded ${cartItems.length} items from local cart');
+      } else {
+        cartItems.clear();
+      }
+    } catch (e) {
+      print('Error loading local cart: $e');
+      cartItems.clear();
+    }
+  }
+
+  Future<void> _saveLocalCart() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cartJson = jsonEncode(cartItems.map((item) => item.toJson()).toList());
+      await prefs.setString('local_cart', cartJson);
+      print('🛒 Saved ${cartItems.length} items to local cart');
+    } catch (e) {
+      print('Error saving local cart: $e');
+    }
+  }
+
+  Future<void> _addToLocalCart(String productId, int quantity) async {
+    try {
+      final existingIndex = cartItems.indexWhere((item) => item.id == productId);
+      
+      if (existingIndex >= 0) {
+        // Update existing item quantity
+        final existingItem = cartItems[existingIndex];
+        cartItems[existingIndex] = CartItem(
+          id: existingItem.id,
+          name: existingItem.name,
+          price: existingItem.price,
+          quantity: existingItem.quantity + quantity,
+          image: existingItem.image,
+        );
+      } else {
+        // Add new item - simplified version
+        cartItems.add(CartItem(
+          id: productId,
+          name: 'منتج مضاف محلياً',
+          price: 0.0,
+          quantity: quantity,
+          image: '',
+        ));
+      }
+      
+      cartItems.refresh();
+      await _saveLocalCart();
+      
+      Get.snackbar(
+        'تم بنجاح',
+        'تم إضافة المنتج إلى السلة محلياً',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.blue,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      print('Error adding to local cart: $e');
+    }
+  }
+
+  Future<void> _updateLocalCartQuantity(String productId, int newQuantity) async {
+    try {
+      final index = cartItems.indexWhere((item) => item.id == productId);
+      if (index >= 0) {
+        if (newQuantity > 0) {
+          final existingItem = cartItems[index];
+          cartItems[index] = CartItem(
+            id: existingItem.id,
+            name: existingItem.name,
+            price: existingItem.price,
+            quantity: newQuantity,
+            image: existingItem.image,
+          );
+        } else {
+          cartItems.removeAt(index);
+        }
+        cartItems.refresh();
+        await _saveLocalCart();
+      }
+    } catch (e) {
+      print('Error updating local cart quantity: $e');
+    }
+  }
+
+  Future<void> _removeFromLocalCart(String productId) async {
+    try {
+      cartItems.removeWhere((item) => item.id == productId);
+      cartItems.refresh();
+      await _saveLocalCart();
+    } catch (e) {
+      print('Error removing from local cart: $e');
+    }
+  }
+}

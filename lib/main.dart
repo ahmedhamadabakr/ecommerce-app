@@ -14,34 +14,27 @@ import 'package:ecommerce_store/controllers/cart_controller.dart';
 import 'package:ecommerce_store/controllers/products_controller.dart';
 
 void main() {
-  print('Starting app...');
-  // Initialize GetX controllers in correct order
-  print('Initializing AuthController...');
-  Get.put(AuthController()); // Initialize first
-  print('Initializing CartController...');
-  Get.put(CartController()); // Initialize after AuthController
-  print('Initializing RegisterController...');
+  WidgetsFlutterBinding.ensureInitialized();
+  Get.put(AuthController());
+  Get.put(CartController());
   Get.put(RegisterController());
-  print('Initializing ProductsController...');
   Get.put(ProductsController());
-  print('All controllers initialized, running app...');
   runApp(const Ecommerce());
 }
 
 class Ecommerce extends StatelessWidget {
   const Ecommerce({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
       initialRoute: "/",
       getPages: [
         GetPage(name: "/", page: () => Home()),
+        GetPage(name: "/login", page: () => LoginPage()),
         GetPage(name: kProductDetilRoute, page: () => ProductDetilScreen()),
         GetPage(name: kRegisterPage, page: () => RegisterPage()),
         GetPage(name: kRegisterPage2, page: () => RegisterStep2Page()),
-        GetPage(name: kLoginPage, page: () => LoginPage()),
         GetPage(name: kCartPage, page: () => Cart()),
         GetPage(name: kSettingspage, page: () => SettingsScreen()),
       ],
@@ -49,3 +42,5 @@ class Ecommerce extends StatelessWidget {
     );
   }
 }
+
+

@@ -62,7 +62,9 @@ class User {
 
 class AuthController extends GetxController {
   final ApiService _apiService = ApiService();
-  final CartController _cartController = Get.isRegistered<CartController>() ? Get.find<CartController>() : Get.put(CartController());
+  final CartController _cartController = Get.isRegistered<CartController>()
+      ? Get.find<CartController>()
+      : Get.put(CartController());
 
   var user = Rxn<User>();
   var isAuthenticated = false.obs;
@@ -77,8 +79,8 @@ class AuthController extends GetxController {
     super.onInit();
     _apiService.init();
     print('API service initialized');
+    // Check auth status silently in background
     checkAuthStatus();
-    print('checkAuthStatus called');
   }
 
   Future<void> checkAuthStatus() async {
@@ -86,21 +88,28 @@ class AuthController extends GetxController {
     final prefs = await SharedPreferences.getInstance();
     final storedToken = prefs.getString('token');
     final isAuthStored = prefs.getBool('isAuthenticated') ?? false;
+    final storedUserId = prefs.getString('userId');
+    final userJsonString = prefs.getString('user');
 
     print('Checking auth status...');
-    print('Stored token: $storedToken');
+    print('Stored token exists: ${storedToken != null}');
     print('Is auth stored: $isAuthStored');
+    print('User ID exists: ${storedUserId != null}');
 
-    if (storedToken != null && isAuthStored) {
-      print('Token found and auth is stored, setting up authentication...');
+    // Check if we have all required data for authentication
+    if (storedToken != null && isAuthStored && storedUserId != null) {
+      print('✅ Found valid authentication data, restoring session...');
+      
+      // Set all authentication data
       token.value = storedToken;
-      _apiService.setToken(token.value);
+      userId.value = storedUserId;
       isAuthenticated.value = true;
 
-      // استعادة بيانات المستخدم لو مخزنة
-      final userJsonString = prefs.getString('user');
-      final storedUserId = prefs.getString('userId');
-      
+      // Configure API service
+      _apiService.setToken(token.value);
+      _apiService.setUserId(userId.value);
+
+      // Restore user data if available
       if (userJsonString != null) {
         try {
           final userMap = Map<String, dynamic>.from(jsonDecode(userJsonString));
@@ -108,28 +117,38 @@ class AuthController extends GetxController {
           print('User data restored: ${user.value?.fullName}');
         } catch (e) {
           print('Error parsing user data: $e');
-          // Clear invalid user data
           await prefs.remove('user');
         }
       }
-      
-      if (storedUserId != null) {
-        userId.value = storedUserId;
-        print('User ID restored: ${userId.value}');
-        _apiService.setUserId(userId.value);
-      }
 
+      // Set cart authentication status
       _cartController.setAuthenticationStatus(true);
-      print('Authentication setup complete');
+      print('✅ Authentication restored successfully');
     } else {
-      print('No valid token found, clearing authentication...');
-      isAuthenticated.value = false;
-      // Clear authentication status from SharedPreferences
-      await prefs.setBool('isAuthenticated', false);
-      await prefs.remove('token');
-      await prefs.remove('user');
+      print('❌ No valid authentication found, clearing data...');
+      await _clearAuthenticationData();
     }
     print('=== CHECK AUTH STATUS END ===');
+  }
+
+  Future<void> _clearAuthenticationData() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Clear memory
+    isAuthenticated.value = false;
+    token.value = '';
+    user.value = null;
+    userId.value = '';
+    
+    // Clear SharedPreferences
+    await prefs.setBool('isAuthenticated', false);
+    await prefs.remove('token');
+    await prefs.remove('user');
+    await prefs.remove('userId');
+    
+    // Clear API service
+    _apiService.clearToken();
+    _cartController.setAuthenticationStatus(false);
   }
 
   // Register new user
@@ -188,108 +207,102 @@ class AuthController extends GetxController {
     }
   }
 
-  // Login user
-  Future<bool> login({required String email, required String password}) async {
-    print('=== LOGIN START ===');
-    print('Email: $email');
+  Future<void> login(String email, String password) async {
     try {
       loading.value = true;
       error.value = '';
 
       final credentials = {'email': email, 'password': password};
-
       final response = await _apiService.login(credentials);
-      print('Login response status: ${response.statusCode}');
-      print('Login response data: ${response.data}');
-      
+
       if (response.statusCode == 200) {
         final data = response.data;
+        final tokenValue = data['token'];
+        final userData = data['user'];
 
-        if (data['token'] != null) {
-          token.value = data['token'];
-          print('Received token from server: ${token.value}');
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('token', token.value);
-          print('Token saved to SharedPreferences');
-          _apiService.setToken(token.value);
-          print('Token set in API service');
-        } else {
-          print('No token received from server');
-        }
-
-        if (data['user'] != null) {
-          user.value = User.fromJson(data['user']);
-          print('User data received: ${user.value?.fullName}');
+        if (tokenValue != null && userData != null) {
+          print('✅ Login successful, setting up authentication...');
           
-          // حفظ معرف المستخدم
+          // Set all authentication data in memory
+          token.value = tokenValue;
+          user.value = User.fromJson(userData);
           userId.value = user.value!.id;
-          print('User ID: ${userId.value}');
+          isAuthenticated.value = true;
+
+          // Configure API service FIRST
+          _apiService.setToken(token.value);
           _apiService.setUserId(userId.value);
 
-          // حفظ بيانات المستخدم
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('user', jsonEncode(user.value!.toJson()));
-          await prefs.setString('userId', userId.value);
-          print('User data saved to SharedPreferences');
+          // Save to SharedPreferences with proper error handling
+          await _saveAuthenticationData();
+
+          // Set cart authentication status
+          _cartController.setAuthenticationStatus(true);
+
+          print('🎉 Authentication setup complete, navigating to home...');
+          Get.offAllNamed('/');
+
+          Get.snackbar(
+            'تم تسجيل الدخول',
+            'أهلًا بك ${user.value!.fullName}',
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+            snackPosition: SnackPosition.BOTTOM,
+          );
+        } else {
+          error.value = 'بيانات المستخدم أو التوكن غير صالحة';
+          print('❌ Invalid user data or token');
         }
-
-        isAuthenticated.value = true;
-        await _saveAuthStatus(true);
-        print('Authentication status saved');
-        _cartController.setAuthenticationStatus(true);
-
-        Get.snackbar(
-          'Success',
-          'تم تسجيل الدخول بنجاح!',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-
-        print('=== LOGIN SUCCESS ===');
-        return true;
       } else {
-        print('Login failed with status: ${response.statusCode}');
-        error.value = 'Login failed';
-        return false;
+        error.value = 'فشل تسجيل الدخول';
+        print('❌ Login failed with status: ${response.statusCode}');
       }
     } catch (e) {
-      print('Login error: $e');
-      error.value = 'Login failed: ${e.toString()}';
-      return false;
+      error.value = 'حدث خطأ أثناء تسجيل الدخول: ${e.toString()}';
+      print('❌ Login error: $e');
     } finally {
       loading.value = false;
-      print('=== LOGIN END ===');
     }
+  }
+
+  Future<void> _saveAuthenticationData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      print('💾 Saving authentication data...');
+      await prefs.setString('token', token.value);
+      await prefs.setString('user', jsonEncode(user.value!.toJson()));
+      await prefs.setString('userId', userId.value);
+      await prefs.setBool('isAuthenticated', true);
+      
+      print('✅ Authentication data saved successfully');
+    } catch (e) {
+      print('❌ Error saving authentication data: $e');
+      // Don't throw here, just log the error
+    }
+  }
+
+  // Remove token and clear authentication
+  Future<void> removeToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token');
+    await prefs.remove('user');
+    await prefs.remove('userId');
+    await prefs.setBool('isAuthenticated', false);
+    
+    token.value = '';
+    user.value = null;
+    userId.value = '';
+    isAuthenticated.value = false;
+    
+    _apiService.clearToken();
+    _cartController.setAuthenticationStatus(false);
   }
 
   // Logout user
   Future<void> logout() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('token');
-      await prefs.remove('user');
-      await prefs.remove('userId');
-      await prefs.setBool('isAuthenticated', false);
-
-      user.value = null;
-      isAuthenticated.value = false;
-      token.value = '';
-      userId.value = '';
-      _cartController.setAuthenticationStatus(false);
-      Get.snackbar(
-        'Success',
-        'تم تسجيل الخروج بنجاح',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.blue,
-        colorText: Colors.white,
-      );
-
-      // Navigate to home
-      Get.offAllNamed('/');
-    } catch (e) {
-      print('Logout error: $e');
-    }
+    await removeToken();
+    Get.offAllNamed('/login');
   }
 
   // Get current user
@@ -407,39 +420,45 @@ class AuthController extends GetxController {
       error.value = '';
 
       final credentials = {'email': email, 'password': password};
-
       final response = await _apiService.login(credentials);
+      
       if (response.statusCode == 200) {
         final data = response.data;
+        final tokenValue = data['token'];
+        final userData = data['user'];
 
-        if (data['token'] != null) {
-          token.value = data['token'];
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('token', token.value);
+        if (tokenValue != null && userData != null) {
+          print('✅ Auto login successful after registration');
+          
+          // Set all authentication data
+          token.value = tokenValue;
+          user.value = User.fromJson(userData);
+          userId.value = user.value!.id;
+          isAuthenticated.value = true;
+
+          // Configure API service
           _apiService.setToken(token.value);
+          _apiService.setUserId(userId.value);
+
+          // Save authentication data
+          await _saveAuthenticationData();
+
+          // Set cart authentication status
+          _cartController.setAuthenticationStatus(true);
+
+          Get.snackbar(
+            'Success',
+            'تم التسجيل وتسجيل الدخول بنجاح!',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+          );
+
+          return true;
+        } else {
+          error.value = 'بيانات المستخدم أو التوكن غير صالحة';
+          return false;
         }
-
-        if (data['user'] != null) {
-          user.value = User.fromJson(data['user']);
-
-          // حفظ بيانات المستخدم
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('user', jsonEncode(user.value!.toJson()));
-        }
-
-        isAuthenticated.value = true;
-        await _saveAuthStatus(true);
-        _cartController.setAuthenticationStatus(true);
-
-        Get.snackbar(
-          'Success',
-          'تم التسجيل وتسجيل الدخول بنجاح!',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-
-        return true;
       } else {
         error.value = 'Auto login failed';
         return false;
@@ -452,14 +471,7 @@ class AuthController extends GetxController {
     }
   }
 
-  // Save authentication status to SharedPreferences
-  Future<void> _saveAuthStatus(bool status) async {
-    print('=== SAVE AUTH STATUS ===');
-    print('Status to save: $status');
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isAuthenticated', status);
-    print('Authentication status saved to SharedPreferences: $status');
-  }
+
 
   // Clear error
   void clearError() {

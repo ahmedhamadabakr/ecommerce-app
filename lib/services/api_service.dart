@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:get/get.dart' as getx;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -8,9 +9,9 @@ class ApiService {
 
   late Dio _dio;
   final String baseUrl = 'https://e-commerce-store-bgmf.vercel.app';
+  String? _token;
 
   void init() {
-    print('Initializing API Service with base URL: $baseUrl');
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
@@ -20,189 +21,94 @@ class ApiService {
       ),
     );
 
-    // Request interceptor
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
-          // Add timestamp for cache control
-          if (options.method == 'GET') {
-            options.queryParameters = {
-              ...options.queryParameters,
-              '_t': DateTime.now().millisecondsSinceEpoch,
-            };
+        onRequest: (options, handler) async {
+          final prefs = await SharedPreferences.getInstance();
+          final savedToken = prefs.getString('token');
+          if (savedToken != null) {
+            options.headers['Authorization'] = 'Bearer $savedToken';
           }
-          print('Sending request to: ${options.path}');
-          print('Request headers: ${options.headers}');
+
+          if (_userId != null) {
+            options.headers['X-User-ID'] = _userId!;
+          }
+
+          if (options.method == 'GET') {
+            options.queryParameters['_t'] =
+                DateTime.now().millisecondsSinceEpoch;
+          }
+
+          print('📤 Request to: ${options.path}');
+          print('Headers: ${options.headers}');
           handler.next(options);
         },
         onResponse: (response, handler) {
-          print('Received response from: ${response.requestOptions.path}');
-          print('Response status: ${response.statusCode}');
-          print('Response headers: ${response.headers}');
+          print('✅ Response from: ${response.requestOptions.path}');
+          print('Status: ${response.statusCode}');
           handler.next(response);
         },
         onError: (error, handler) {
-          // Handle errors
+          print('❌ Error from: ${error.requestOptions.path}');
+          print('Message: ${error.message}');
           if (error.response?.statusCode == 401) {
-            // Redirect to login if unauthorized
-            getx.Get.offAllNamed('/login');
+            // Only redirect for critical auth failures, not cart errors
+            final path = error.requestOptions.path;
+            if (path.contains('/api/mobile/') || path.contains('/api/auth/')) {
+              // Critical auth endpoints - clear token and redirect
+              _clearInvalidToken();
+            } else {
+              // Non-critical endpoints like cart - just log the error
+              print('⚠️ Auth error on ${path}, but keeping user logged in');
+            }
           }
-          print('API call failed: ${error.message}');
           handler.next(error);
         },
       ),
     );
   }
 
-  // Products API
-  Future<Response> getAllProducts() async {
-    print('Making API call to: ${_dio.options.baseUrl}/api/products');
+  String? _userId;
+
+  void setUserId(String userId) {
+    _userId = userId;
+    print('🧑‍💼 Set user ID: $userId');
+  }
+
+  void setToken(String token) {
+    _token = token;
+    _dio.options.headers['Authorization'] = 'Bearer $token';
+    print('Setting token in API service: $token');
+  }
+
+  void clearToken() {
+    _token = null;
+    _dio.options.headers.remove('Authorization');
+    print('🧹 Token cleared from API service');
+  }
+
+  Future<void> _clearInvalidToken() async {
     try {
-      // First try the main endpoint
-      final response = await _dio.get('/api/products');
-      print('API call successful: ${response.statusCode}');
-      print('Response headers: ${response.headers}');
-      return response;
-    } catch (e) {
-      print('API call failed: $e');
-      if (e is DioException) {
-        print('DioException type: ${e.type}');
-        print('DioException message: ${e.message}');
-        print('DioException response: ${e.response}');
-
-        // Try alternative endpoints if the main one fails
-        if (e.response?.statusCode == 404) {
-          print('Trying alternative endpoint: /products');
-          try {
-            final altResponse = await _dio.get('/products');
-            print('Alternative API call successful: ${altResponse.statusCode}');
-            return altResponse;
-          } catch (altE) {
-            print('Alternative API call also failed: $altE');
-          }
-        }
-      }
-      rethrow;
-    }
-  }
-
-  Future<Response> getProductById(String id) async {
-    return await _dio.get('/api/products/$id');
-  }
-
-  Future<Response> createProduct(Map<String, dynamic> productData) async {
-    return await _dio.post('/api/products', data: productData);
-  }
-
-  Future<Response> updateProduct(
-    String id,
-    Map<String, dynamic> productData,
-  ) async {
-    return await _dio.put('/api/products/$id', data: productData);
-  }
-
-  Future<Response> deleteProduct(String id) async {
-    return await _dio.delete('/api/products/$id');
-  }
-
-  // Cart API
-  Future<Response> getCart() async {
-    print('=== API SERVICE GET CART ===');
-    final userId = _dio.options.headers['X-User-ID'];
-    print('User ID from headers: $userId');
-    
-    try {
-      final response = await _dio.get('/api/cart', queryParameters: {'userId': userId});
-      print('Get cart successful: ${response.statusCode}');
-      return response;
-    } catch (e) {
-      print('Get cart failed: $e');
-      rethrow;
-    }
-  }
-
-  Future<Response> addToCart(String productId, int quantity) async {
-    print('=== API SERVICE ADD TO CART ===');
-    print('Product ID: $productId');
-    print('Quantity: $quantity');
-    print('Current headers: ${_dio.options.headers}');
-    print('Authorization header: ${_dio.options.headers['Authorization']}');
-    print('X-User-ID header: ${_dio.options.headers['X-User-ID']}');
-    
-    try {
-      // Get user ID from headers
-      final userId = _dio.options.headers['X-User-ID'];
-      print('User ID from headers: $userId');
+      print('🚫 Token is invalid, clearing and redirecting to login...');
       
-      final requestData = {
-        'productId': productId, 
-        'quantity': quantity,
-        'userId': userId, // Add user ID to request body
-      };
+      // Clear token from memory
+      clearToken();
       
-      print('Request data: $requestData');
+      // Clear from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('token');
+      await prefs.remove('user');
+      await prefs.remove('userId');
+      await prefs.setBool('isAuthenticated', false);
       
-      final response = await _dio.post(
-        '/api/cart/add',
-        data: requestData,
-      );
-      print('API call successful: ${response.statusCode}');
-      return response;
+      // Redirect to login
+      getx.Get.offAllNamed('/login');
     } catch (e) {
-      print('API call failed: $e');
-      rethrow;
+      print('Error clearing invalid token: $e');
     }
   }
 
-  Future<Response> updateCartItem(String productId, int quantity) async {
-    print('=== API SERVICE UPDATE CART ===');
-    final userId = _dio.options.headers['X-User-ID'];
-    print('User ID from headers: $userId');
-    
-    try {
-      final response = await _dio.put(
-        '/api/cart/update/$productId',
-        data: {'quantity': quantity, 'userId': userId},
-      );
-      print('Update cart successful: ${response.statusCode}');
-      return response;
-    } catch (e) {
-      print('Update cart failed: $e');
-      rethrow;
-    }
-  }
-
-  Future<Response> removeFromCart(String productId) async {
-    print('=== API SERVICE REMOVE FROM CART ===');
-    final userId = _dio.options.headers['X-User-ID'];
-    print('User ID from headers: $userId');
-    
-    try {
-      final response = await _dio.delete('/api/cart/remove/$productId', data: {'userId': userId});
-      print('Remove from cart successful: ${response.statusCode}');
-      return response;
-    } catch (e) {
-      print('Remove from cart failed: $e');
-      rethrow;
-    }
-  }
-
-  Future<Response> clearCart() async {
-    print('=== API SERVICE CLEAR CART ===');
-    final userId = _dio.options.headers['X-User-ID'];
-    print('User ID from headers: $userId');
-    
-    try {
-      final response = await _dio.delete('/api/cart/clear', data: {'userId': userId});
-      print('Clear cart successful: ${response.statusCode}');
-      return response;
-    } catch (e) {
-      print('Clear cart failed: $e');
-      rethrow;
-    }
-  }
-
-  // Auth API
+  // ========== Auth ==========
   Future<Response> register(Map<String, dynamic> userData) async {
     return await _dio.post('/api/mobile/register', data: userData);
   }
@@ -211,25 +117,68 @@ class ApiService {
     return await _dio.post('/api/mobile/login', data: credentials);
   }
 
-  // Generic methods
+  // ========== Products ==========
+  Future<Response> getAllProducts() async {
+    try {
+      return await _dio.get('/api/products');
+    } catch (e) {
+      print('❗ getAllProducts failed: $e');
+      rethrow;
+    }
+  }
+
+  Future<Response> getProductById(String id) async {
+    return await _dio.get('/api/products/$id');
+  }
+
+  Future<Response> createProduct(Map<String, dynamic> data) async {
+    return await _dio.post('/api/products', data: data);
+  }
+
+  Future<Response> updateProduct(String id, Map<String, dynamic> data) async {
+    return await _dio.put('/api/products/$id', data: data);
+  }
+
+  Future<Response> deleteProduct(String id) async {
+    return await _dio.delete('/api/products/$id');
+  }
+
+  // ========== Cart ==========
+  Future<Response> getCart() async {
+    return await _dio.get('/api/cart');
+  }
+
+  Future<Response> addToCart(String productId, int quantity) async {
+    return await _dio.post(
+      '/api/cart/add',
+      data: {'productId': productId, 'quantity': quantity, 'userId': _userId},
+    );
+  }
+
+  Future<Response> updateCartItem(String productId, int quantity) async {
+    return await _dio.put(
+      '/api/cart/update/$productId',
+      data: {'quantity': quantity, 'userId': _userId},
+    );
+  }
+
+  Future<Response> removeFromCart(String productId) async {
+    return await _dio.delete(
+      '/api/cart/remove/$productId',
+      data: {'userId': _userId},
+    );
+  }
+
+  Future<Response> clearCart() async {
+    return await _dio.delete('/api/cart/clear', data: {'userId': _userId});
+  }
+
+  // ========== Generic ==========
   Future<Response> get(
     String path, {
     Map<String, dynamic>? queryParameters,
   }) async {
     return await _dio.get(path, queryParameters: queryParameters);
-  }
-
-  // Test API connection
-  Future<bool> testConnection() async {
-    try {
-      print('Testing API connection...');
-      final response = await _dio.get('/');
-      print('Connection test successful: ${response.statusCode}');
-      return true;
-    } catch (e) {
-      print('Connection test failed: $e');
-      return false;
-    }
   }
 
   Future<Response> post(String path, {dynamic data}) async {
@@ -244,15 +193,13 @@ class ApiService {
     return await _dio.delete(path);
   }
 
-  void setUserId(String userId) {
-    print('Setting user ID in API service: $userId');
-    _dio.options.headers['X-User-ID'] = userId;
-    print('Updated headers: ${_dio.options.headers}');
-  }
-
-  void setToken(String token) {
-    print('Setting token in API service: $token');
-    _dio.options.headers['Authorization'] = 'Bearer $token';
-    print('Updated headers: ${_dio.options.headers}');
+  Future<bool> testConnection() async {
+    try {
+      final response = await _dio.get('/');
+      return response.statusCode == 200;
+    } catch (e) {
+      print('🚫 Test connection failed: $e');
+      return false;
+    }
   }
 }

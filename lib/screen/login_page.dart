@@ -20,8 +20,6 @@ class _LoginPageState extends State<LoginPage> {
   GlobalKey<FormState> globalKey = GlobalKey<FormState>();
   AuthController authController = Get.find<AuthController>();
 
-
-
   @override
   void dispose() {
     emailController.dispose();
@@ -99,25 +97,25 @@ class _LoginPageState extends State<LoginPage> {
 
                   const SizedBox(height: 20),
 
-                  Obx(() => authController.loading.value
-                      ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                      : CustomButton(
-                          btnText: "LOGIN",
-                          onTab: () async {
-                            if (globalKey.currentState!.validate()) {
-                              final success = await authController.login(
-                                email: emailController.text,
-                                password: passwordController.text,
-                              );
-                              
-                              if (success) {
-                                // Navigate to home page after successful login
-                                await Future.delayed(Duration(milliseconds: 500));
-                                Get.offAllNamed('/');
+                  Obx(
+                    () => authController.loading.value
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                            ),
+                          )
+                        : CustomButton(
+                            btnText: "LOGIN",
+                            onTab: () async {
+                              if (globalKey.currentState!.validate()) {
+                                await authController.login(
+                                  emailController.text,
+                                  passwordController.text,
+                                );
                               }
-                            }
-                          },
-                        )),
+                            },
+                          ),
+                  ),
 
                   const SizedBox(height: 12),
 

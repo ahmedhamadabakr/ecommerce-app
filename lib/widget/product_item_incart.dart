@@ -72,12 +72,16 @@ class ProductItemInCart extends StatelessWidget {
                         IconButton(
                           onPressed: () {
                             if (cartItem.quantity > 1) {
-                              cartController.updateQuantity(cartItem.id, cartItem.quantity - 1);
+                              cartController.updateQuantity(cartItem.id.toString(), cartItem.quantity - 1);
                             } else {
-                              cartController.removeFromCart(cartItem.id);
+                              cartController.removeFromCart(cartItem.id.toString());
                             }
                           },
                           icon: const Icon(Icons.remove),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.grey.shade200,
+                            padding: const EdgeInsets.all(8),
+                          ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -92,9 +96,13 @@ class ProductItemInCart extends StatelessWidget {
                         ),
                         IconButton(
                           onPressed: () {
-                            cartController.updateQuantity(cartItem.id, cartItem.quantity + 1);
+                            cartController.updateQuantity(cartItem.id.toString(), cartItem.quantity + 1);
                           },
                           icon: const Icon(Icons.add),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.green.shade200,
+                            padding: const EdgeInsets.all(8),
+                          ),
                         ),
                       ],
                     ),
@@ -106,7 +114,7 @@ class ProductItemInCart extends StatelessWidget {
                         ),
                         IconButton(
                           onPressed: () {
-                            cartController.removeFromCart(cartItem.id);
+                            cartController.removeFromCart(cartItem.id.toString());
                           },
                           icon: const Icon(Icons.delete, color: Colors.red),
                         ),

@@ -1,5 +1,4 @@
 import 'package:get/get.dart';
-import 'package:ecommerce_store/constent.dart';
 import 'package:ecommerce_store/controllers/auth_controller.dart';
 
 // GetX Controller for registration
@@ -73,7 +72,7 @@ class RegisterController extends GetxController {
         Get.offAllNamed('/');
       } else {
         // If auto-login fails, navigate to login page
-        Get.offAllNamed(kLoginPage);
+        Get.offAllNamed('/login');
       }
     }
   }
