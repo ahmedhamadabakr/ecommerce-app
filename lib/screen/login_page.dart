@@ -4,6 +4,7 @@ import 'package:ecommerce_store/widget/custom_text_field.dart';
 import 'package:ecommerce_store/widget/open_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:ecommerce_store/controllers/auth_controller.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,10 +15,19 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  String? email;
-  String? password;
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
   GlobalKey<FormState> globalKey = GlobalKey<FormState>();
-  bool isLoading = false;
+  AuthController authController = Get.find<AuthController>();
+
+
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,39 +72,52 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 15),
 
                   CustomFormTextField(
+                    controller: emailController,
                     hintText: "Email",
-                    onchange: (data) => email = data,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your email';
+                      }
+                      return null;
+                    },
                   ),
 
                   const SizedBox(height: 10),
 
                   CustomFormTextField(
+                    controller: passwordController,
                     obscureText: true,
                     hintText: "Password",
-                    onchange: (data) => password = data,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your password';
+                      }
+                      return null;
+                    },
                   ),
 
                   const SizedBox(height: 20),
 
-                  isLoading
+                  Obx(() => authController.loading.value
                       ? const Center(child: CircularProgressIndicator(color: Colors.white))
                       : CustomButton(
                           btnText: "LOGIN",
                           onTab: () async {
                             if (globalKey.currentState!.validate()) {
-                              setState(() => isLoading = true);
+                              final success = await authController.login(
+                                email: emailController.text,
+                                password: passwordController.text,
+                              );
                               
-                              await Future.delayed(const Duration(seconds: 2)); // محاكاة انتظار API
-
-                              setState(() => isLoading = false);
-
-                              // استكمال تسجيل الدخول
-                              Get.snackbar("Success", "Logged in successfully",
-                                  backgroundColor: Colors.green,
-                                  colorText: Colors.white);
+                              if (success) {
+                                // Navigate to home page after successful login
+                                await Future.delayed(Duration(milliseconds: 500));
+                                Get.offAllNamed('/');
+                              }
                             }
                           },
-                        ),
+                        )),
 
                   const SizedBox(height: 12),
 

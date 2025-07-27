@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:flutter/material.dart';
 import 'package:ecommerce_store/constent.dart';
+import 'package:ecommerce_store/controllers/auth_controller.dart';
 
 // GetX Controller for registration
 class RegisterController extends GetxController {
@@ -44,17 +44,37 @@ class RegisterController extends GetxController {
   }
 
   void register() async {
-    // Simulate registration process
-    await Future.delayed(const Duration(seconds: 2));
+    // Get auth controller
+    final authController = Get.find<AuthController>();
     
-    Get.snackbar(
-      "Success",
-      "Account created successfully!",
-      backgroundColor: Colors.green,
-      colorText: Colors.white,
+    // Call auth controller register method
+    final success = await authController.register(
+      firstName: firstName.value,
+      lastName: lastName.value,
+      email: email.value,
+      phone: phone.value,
+      address: address.value,
+      age: int.tryParse(age.value) ?? 0,
+      gender: gender.value,
+      password: password.value,
+      confirmPassword: confirmPassword.value,
     );
-
-    // Navigate to login page
-    Get.offAllNamed(kLoginPage);
+    
+    if (success) {
+      // After successful registration, automatically login the user
+      final loginSuccess = await authController.autoLoginAfterRegister(
+        email: email.value,
+        password: password.value,
+      );
+      
+      if (loginSuccess) {
+        // Navigate to home page
+        await Future.delayed(Duration(milliseconds: 500));
+        Get.offAllNamed('/');
+      } else {
+        // If auto-login fails, navigate to login page
+        Get.offAllNamed(kLoginPage);
+      }
+    }
   }
 } 

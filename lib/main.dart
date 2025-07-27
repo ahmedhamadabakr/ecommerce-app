@@ -9,10 +9,22 @@ import 'package:ecommerce_store/screen/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:ecommerce_store/controllers/register_controller.dart';
+import 'package:ecommerce_store/controllers/auth_controller.dart';
+import 'package:ecommerce_store/controllers/cart_controller.dart';
+import 'package:ecommerce_store/controllers/products_controller.dart';
 
 void main() {
-  // Initialize GetX controllers
+  print('Starting app...');
+  // Initialize GetX controllers in correct order
+  print('Initializing AuthController...');
+  Get.put(AuthController()); // Initialize first
+  print('Initializing CartController...');
+  Get.put(CartController()); // Initialize after AuthController
+  print('Initializing RegisterController...');
   Get.put(RegisterController());
+  print('Initializing ProductsController...');
+  Get.put(ProductsController());
+  print('All controllers initialized, running app...');
   runApp(const Ecommerce());
 }
 
@@ -34,7 +46,6 @@ class Ecommerce extends StatelessWidget {
         GetPage(name: kSettingspage, page: () => SettingsScreen()),
       ],
       debugShowCheckedModeBanner: false,
-      home: Home(),
     );
   }
 }

@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:ecommerce_store/controllers/cart_controller.dart';
+import 'package:get/get.dart';
 
 class ProductItemInCart extends StatelessWidget {
-  const ProductItemInCart({super.key});
+  final CartItem cartItem;
+  
+  const ProductItemInCart({super.key, required this.cartItem});
 
   @override
   Widget build(BuildContext context) {
+    final CartController cartController = Get.find<CartController>();
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -13,7 +19,27 @@ class ProductItemInCart extends StatelessWidget {
           // صورة المنتج
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.asset("assets/15.png", height: 80, width: 80, fit: BoxFit.cover),
+            child: cartItem.image.isNotEmpty
+                ? Image.network(
+                    cartItem.image,
+                    height: 80,
+                    width: 80,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Image.asset(
+                        "assets/15.png",
+                        height: 80,
+                        width: 80,
+                        fit: BoxFit.cover,
+                      );
+                    },
+                  )
+                : Image.asset(
+                    "assets/15.png",
+                    height: 80,
+                    width: 80,
+                    fit: BoxFit.cover,
+                  ),
           ),
 
           const SizedBox(width: 12),
@@ -23,9 +49,17 @@ class ProductItemInCart extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Title of Product", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(
+                  cartItem.name,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 4),
-                const Text("Price: \$22", style: TextStyle(color: Colors.grey)),
+                Text(
+                  "Price: \$${cartItem.price.toStringAsFixed(2)}",
+                  style: const TextStyle(color: Colors.grey),
+                ),
 
                 const SizedBox(height: 8),
 
@@ -35,15 +69,47 @@ class ProductItemInCart extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        IconButton(onPressed: () {}, icon: const Icon(Icons.remove)),
-                        const Text("1"),
-                        IconButton(onPressed: () {}, icon: const Icon(Icons.add)),
+                        IconButton(
+                          onPressed: () {
+                            if (cartItem.quantity > 1) {
+                              cartController.updateQuantity(cartItem.id, cartItem.quantity - 1);
+                            } else {
+                              cartController.removeFromCart(cartItem.id);
+                            }
+                          },
+                          icon: const Icon(Icons.remove),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            cartItem.quantity.toString(),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            cartController.updateQuantity(cartItem.id, cartItem.quantity + 1);
+                          },
+                          icon: const Icon(Icons.add),
+                        ),
                       ],
                     ),
                     Row(
                       children: [
-                        const Text("\$22", style: TextStyle(fontWeight: FontWeight.bold)),
-                        IconButton(onPressed: () {}, icon: const Icon(Icons.delete, color: Colors.red)),
+                        Text(
+                          "\$${(cartItem.price * cartItem.quantity).toStringAsFixed(2)}",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            cartController.removeFromCart(cartItem.id);
+                          },
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                        ),
                       ],
                     ),
                   ],
