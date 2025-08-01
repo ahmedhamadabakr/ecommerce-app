@@ -9,6 +9,8 @@ class ApiService {
 
   late Dio _dio;
   final String baseUrl = 'https://e-commerce-store-bgmf.vercel.app';
+  // final String baseUrl = 'http://localhost:3000';
+
   String? _token;
 
   void init() {
@@ -64,14 +66,19 @@ class ApiService {
           print('❌ Error from: ${error.requestOptions.path}');
           print('Message: ${error.message}');
           if (error.response?.statusCode == 401) {
-            // Only redirect for critical auth failures, not cart errors
             final path = error.requestOptions.path;
-            if (path.contains('/api/mobile/') || path.contains('/api/auth/')) {
-              // Critical auth endpoints - clear token and redirect
+            print('🚫 401 Unauthorized on $path');
+            print('🚫 This indicates a server authentication issue');
+            print('🚫 Check if server endpoints exist and JWT_SECRET is correct');
+            
+            // Only clear token for login/register failures
+            if (path.contains('/api/mobile/login') || 
+                path.contains('/api/mobile/register')) {
+              print('🚫 Login/Register failed - clearing token');
               _clearInvalidToken();
             } else {
-              // Non-critical endpoints like cart - just log the error
-              print('⚠️ Auth error on ${path}, but keeping user logged in');
+              print('⚠️ Server endpoint not found or authentication failed');
+              print('⚠️ Keeping user logged in - this is likely a server setup issue');
             }
           }
           handler.next(error);
