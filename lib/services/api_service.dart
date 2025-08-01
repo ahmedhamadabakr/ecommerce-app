@@ -26,9 +26,21 @@ class ApiService {
         onRequest: (options, handler) async {
           final prefs = await SharedPreferences.getInstance();
           final savedToken = prefs.getString('token');
+          
+          // للتوافق مع NextAuth، نرسل token في cookie format أيضاً
           if (savedToken != null) {
             options.headers['Authorization'] = 'Bearer $savedToken';
+            // محاولة إضافة session cookie إذا كان متاح
+            final sessionCookie = prefs.getString('session_cookie');
+            if (sessionCookie != null) {
+              options.headers['Cookie'] = sessionCookie;
+            }
           }
+
+          // إضافة headers إضافية للتعرف على طلبات الموبايل
+          options.headers['X-Mobile-App'] = 'true';
+          options.headers['X-Platform'] = 'flutter';
+          options.headers['X-App-Version'] = '1.0.0';
 
           if (_userId != null) {
             options.headers['X-User-ID'] = _userId!;
@@ -145,32 +157,38 @@ class ApiService {
 
   // ========== Cart ==========
   Future<Response> getCart() async {
-    return await _dio.get('/api/cart');
+    // استخدام endpoint الموبايل الجديد
+    return await _dio.get('/api/mobile/cart');
   }
 
   Future<Response> addToCart(String productId, int quantity) async {
+    // البيانات حسب توقعات السيرفر الجديد
+    final data = {
+      'productId': productId, 
+      'quantity': quantity
+    };
+    print('🛒 API - Sending cart data to mobile endpoint: $data');
+    print('🛒 API - Current token exists: ${_token != null}');
+    
     return await _dio.post(
-      '/api/cart/add',
-      data: {'productId': productId, 'quantity': quantity, 'userId': _userId},
+      '/api/mobile/cart/add',  // استخدام endpoint الموبايل
+      data: data,
     );
   }
 
   Future<Response> updateCartItem(String productId, int quantity) async {
     return await _dio.put(
-      '/api/cart/update/$productId',
-      data: {'quantity': quantity, 'userId': _userId},
+      '/api/mobile/cart/update/$productId',  // endpoint الموبايل
+      data: {'quantity': quantity},
     );
   }
 
   Future<Response> removeFromCart(String productId) async {
-    return await _dio.delete(
-      '/api/cart/remove/$productId',
-      data: {'userId': _userId},
-    );
+    return await _dio.delete('/api/mobile/cart/remove/$productId');  // endpoint الموبايل
   }
 
   Future<Response> clearCart() async {
-    return await _dio.delete('/api/cart/clear', data: {'userId': _userId});
+    return await _dio.delete('/api/mobile/cart/clear');  // endpoint الموبايل
   }
 
   // ========== Generic ==========
