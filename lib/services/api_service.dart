@@ -28,7 +28,7 @@ class ApiService {
         onRequest: (options, handler) async {
           final prefs = await SharedPreferences.getInstance();
           final savedToken = prefs.getString('token');
-          
+
           // للتوافق مع NextAuth، نرسل token في cookie format أيضاً
           if (savedToken != null) {
             options.headers['Authorization'] = 'Bearer $savedToken';
@@ -53,32 +53,27 @@ class ApiService {
                 DateTime.now().millisecondsSinceEpoch;
           }
 
-          print('📤 Request to: ${options.path}');
-          print('Headers: ${options.headers}');
+
           handler.next(options);
         },
         onResponse: (response, handler) {
-          print('✅ Response from: ${response.requestOptions.path}');
-          print('Status: ${response.statusCode}');
+
           handler.next(response);
         },
         onError: (error, handler) {
-          print('❌ Error from: ${error.requestOptions.path}');
-          print('Message: ${error.message}');
           if (error.response?.statusCode == 401) {
             final path = error.requestOptions.path;
-            print('🚫 401 Unauthorized on $path');
-            print('🚫 This indicates a server authentication issue');
-            print('🚫 Check if server endpoints exist and JWT_SECRET is correct');
-            
+
             // Only clear token for login/register failures
-            if (path.contains('/api/mobile/login') || 
+            if (path.contains('/api/mobile/login') ||
                 path.contains('/api/mobile/register')) {
               print('🚫 Login/Register failed - clearing token');
               _clearInvalidToken();
             } else {
               print('⚠️ Server endpoint not found or authentication failed');
-              print('⚠️ Keeping user logged in - this is likely a server setup issue');
+              print(
+                '⚠️ Keeping user logged in - this is likely a server setup issue',
+              );
             }
           }
           handler.next(error);
@@ -91,35 +86,30 @@ class ApiService {
 
   void setUserId(String userId) {
     _userId = userId;
-    print('🧑‍💼 Set user ID: $userId');
   }
 
   void setToken(String token) {
     _token = token;
     _dio.options.headers['Authorization'] = 'Bearer $token';
-    print('Setting token in API service: $token');
   }
 
   void clearToken() {
     _token = null;
     _dio.options.headers.remove('Authorization');
-    print('🧹 Token cleared from API service');
   }
 
   Future<void> _clearInvalidToken() async {
     try {
-      print('🚫 Token is invalid, clearing and redirecting to login...');
-      
       // Clear token from memory
       clearToken();
-      
+
       // Clear from SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('token');
       await prefs.remove('user');
       await prefs.remove('userId');
       await prefs.setBool('isAuthenticated', false);
-      
+
       // Redirect to login
       getx.Get.offAllNamed('/login');
     } catch (e) {
@@ -170,32 +160,29 @@ class ApiService {
 
   Future<Response> addToCart(String productId, int quantity) async {
     // البيانات حسب توقعات السيرفر الجديد
-    final data = {
-      'productId': productId, 
-      'quantity': quantity
-    };
-    print('🛒 API - Sending cart data to mobile endpoint: $data');
-    print('🛒 API - Current token exists: ${_token != null}');
-    
+    final data = {'productId': productId, 'quantity': quantity};
+
     return await _dio.post(
-      '/api/mobile/cart/add',  // استخدام endpoint الموبايل
+      '/api/mobile/cart/add', // استخدام endpoint الموبايل
       data: data,
     );
   }
 
   Future<Response> updateCartItem(String productId, int quantity) async {
     return await _dio.put(
-      '/api/mobile/cart/update/$productId',  // endpoint الموبايل
+      '/api/mobile/cart/update/$productId', // endpoint الموبايل
       data: {'quantity': quantity},
     );
   }
 
   Future<Response> removeFromCart(String productId) async {
-    return await _dio.delete('/api/mobile/cart/remove/$productId');  // endpoint الموبايل
+    return await _dio.delete(
+      '/api/mobile/cart/remove/$productId',
+    ); // endpoint الموبايل
   }
 
   Future<Response> clearCart() async {
-    return await _dio.delete('/api/mobile/cart/clear');  // endpoint الموبايل
+    return await _dio.delete('/api/mobile/cart/clear'); // endpoint الموبايل
   }
 
   // ========== Generic ==========

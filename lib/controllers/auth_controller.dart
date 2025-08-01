@@ -75,31 +75,21 @@ class AuthController extends GetxController {
 
   @override
   void onInit() {
-    print('=== AUTH CONTROLLER ONINIT ===');
     super.onInit();
     _apiService.init();
-    print('API service initialized');
     // Check auth status silently in background
     checkAuthStatus();
   }
 
   Future<void> checkAuthStatus() async {
-    print('=== CHECK AUTH STATUS START ===');
     final prefs = await SharedPreferences.getInstance();
     final storedToken = prefs.getString('token');
     final isAuthStored = prefs.getBool('isAuthenticated') ?? false;
     final storedUserId = prefs.getString('userId');
     final userJsonString = prefs.getString('user');
 
-    print('Checking auth status...');
-    print('Stored token exists: ${storedToken != null}');
-    print('Is auth stored: $isAuthStored');
-    print('User ID exists: ${storedUserId != null}');
-
     // Check if we have all required data for authentication
     if (storedToken != null && isAuthStored && storedUserId != null) {
-      print('✅ Found valid authentication data, restoring session...');
-      
       // Set all authentication data
       token.value = storedToken;
       userId.value = storedUserId;
@@ -114,38 +104,33 @@ class AuthController extends GetxController {
         try {
           final userMap = Map<String, dynamic>.from(jsonDecode(userJsonString));
           user.value = User.fromJson(userMap);
-          print('User data restored: ${user.value?.fullName}');
         } catch (e) {
-          print('Error parsing user data: $e');
           await prefs.remove('user');
         }
       }
 
       // Set cart authentication status
       _cartController.setAuthenticationStatus(true);
-      print('✅ Authentication restored successfully');
     } else {
-      print('❌ No valid authentication found, clearing data...');
       await _clearAuthenticationData();
     }
-    print('=== CHECK AUTH STATUS END ===');
   }
 
   Future<void> _clearAuthenticationData() async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     // Clear memory
     isAuthenticated.value = false;
     token.value = '';
     user.value = null;
     userId.value = '';
-    
+
     // Clear SharedPreferences
     await prefs.setBool('isAuthenticated', false);
     await prefs.remove('token');
     await prefs.remove('user');
     await prefs.remove('userId');
-    
+
     // Clear API service
     _apiService.clearToken();
     _cartController.setAuthenticationStatus(false);
@@ -221,8 +206,6 @@ class AuthController extends GetxController {
         final userData = data['user'];
 
         if (tokenValue != null && userData != null) {
-          print('✅ Login successful, setting up authentication...');
-          
           // Set all authentication data in memory
           token.value = tokenValue;
           user.value = User.fromJson(userData);
@@ -239,7 +222,6 @@ class AuthController extends GetxController {
           // Set cart authentication status
           _cartController.setAuthenticationStatus(true);
 
-          print('🎉 Authentication setup complete, navigating to home...');
           Get.offAllNamed('/');
 
           Get.snackbar(
@@ -251,15 +233,12 @@ class AuthController extends GetxController {
           );
         } else {
           error.value = 'بيانات المستخدم أو التوكن غير صالحة';
-          print('❌ Invalid user data or token');
         }
       } else {
         error.value = 'فشل تسجيل الدخول';
-        print('❌ Login failed with status: ${response.statusCode}');
       }
     } catch (e) {
       error.value = 'حدث خطأ أثناء تسجيل الدخول: ${e.toString()}';
-      print('❌ Login error: $e');
     } finally {
       loading.value = false;
     }
@@ -268,14 +247,12 @@ class AuthController extends GetxController {
   Future<void> _saveAuthenticationData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
-      print('💾 Saving authentication data...');
+
       await prefs.setString('token', token.value);
       await prefs.setString('user', jsonEncode(user.value!.toJson()));
       await prefs.setString('userId', userId.value);
       await prefs.setBool('isAuthenticated', true);
-      
-      print('✅ Authentication data saved successfully');
+
     } catch (e) {
       print('❌ Error saving authentication data: $e');
       // Don't throw here, just log the error
@@ -289,12 +266,12 @@ class AuthController extends GetxController {
     await prefs.remove('user');
     await prefs.remove('userId');
     await prefs.setBool('isAuthenticated', false);
-    
+
     token.value = '';
     user.value = null;
     userId.value = '';
     isAuthenticated.value = false;
-    
+
     _apiService.clearToken();
     _cartController.setAuthenticationStatus(false);
   }
@@ -364,7 +341,6 @@ class AuthController extends GetxController {
       return true;
     } catch (e) {
       error.value = 'Failed to update profile';
-      print('Update profile error: $e');
       return false;
     } finally {
       loading.value = false;
@@ -403,7 +379,6 @@ class AuthController extends GetxController {
       return true;
     } catch (e) {
       error.value = 'Failed to change password';
-      print('Change password error: $e');
       return false;
     } finally {
       loading.value = false;
@@ -421,15 +396,14 @@ class AuthController extends GetxController {
 
       final credentials = {'email': email, 'password': password};
       final response = await _apiService.login(credentials);
-      
+
       if (response.statusCode == 200) {
         final data = response.data;
         final tokenValue = data['token'];
         final userData = data['user'];
 
         if (tokenValue != null && userData != null) {
-          print('✅ Auto login successful after registration');
-          
+
           // Set all authentication data
           token.value = tokenValue;
           user.value = User.fromJson(userData);
@@ -470,8 +444,6 @@ class AuthController extends GetxController {
       loading.value = false;
     }
   }
-
-
 
   // Clear error
   void clearError() {

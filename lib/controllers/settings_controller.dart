@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SettingsController extends GetxController {
   // Theme
   var isDarkMode = false.obs;
-  
+
   // Language
   var currentLanguage = 'ar'.obs;
   var currentLocale = const Locale('ar', 'SA').obs;
@@ -20,17 +20,16 @@ class SettingsController extends GetxController {
   Future<void> loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Load theme
       isDarkMode.value = prefs.getBool('isDarkMode') ?? false;
-      
+
       // Load language
       currentLanguage.value = prefs.getString('language') ?? 'ar';
       _updateLocale(currentLanguage.value);
-      
+
       // Update GetX theme
       Get.changeThemeMode(isDarkMode.value ? ThemeMode.dark : ThemeMode.light);
-      
     } catch (e) {
       print('Error loading settings: $e');
     }
@@ -40,14 +39,14 @@ class SettingsController extends GetxController {
   Future<void> toggleTheme() async {
     try {
       isDarkMode.value = !isDarkMode.value;
-      
+
       // Save to SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('isDarkMode', isDarkMode.value);
-      
+
       // Update GetX theme
       Get.changeThemeMode(isDarkMode.value ? ThemeMode.dark : ThemeMode.light);
-      
+
       // Show confirmation
       Get.snackbar(
         isDarkMode.value ? 'الوضع الليلي' : 'الوضع النهاري',
@@ -57,7 +56,6 @@ class SettingsController extends GetxController {
         colorText: Colors.white,
         duration: const Duration(seconds: 2),
       );
-      
     } catch (e) {
       print('Error toggling theme: $e');
     }
@@ -68,24 +66,25 @@ class SettingsController extends GetxController {
     try {
       currentLanguage.value = languageCode;
       _updateLocale(languageCode);
-      
+
       // Save to SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('language', languageCode);
-      
+
       // Update GetX locale
       Get.updateLocale(currentLocale.value);
-      
+
       // Show confirmation
       Get.snackbar(
         languageCode == 'ar' ? 'تم تغيير اللغة' : 'Language Changed',
-        languageCode == 'ar' ? 'تم تغيير اللغة إلى العربية' : 'Language changed to English',
+        languageCode == 'ar'
+            ? 'تم تغيير اللغة إلى العربية'
+            : 'Language changed to English',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.green,
         colorText: Colors.white,
         duration: const Duration(seconds: 2),
       );
-      
     } catch (e) {
       print('Error changing language: $e');
     }
@@ -105,11 +104,12 @@ class SettingsController extends GetxController {
   }
 
   // Get current theme mode for MaterialApp
-  ThemeMode get themeMode => isDarkMode.value ? ThemeMode.dark : ThemeMode.light;
-  
+  ThemeMode get themeMode =>
+      isDarkMode.value ? ThemeMode.dark : ThemeMode.light;
+
   // Get available languages
   List<Map<String, String>> get availableLanguages => [
-    {'code': 'ar', 'name': 'العربية', 'flag': '🇸🇦'},
+    {'code': 'ar', 'name': 'العربية', 'flag': 'EG'},
     {'code': 'en', 'name': 'English', 'flag': '🇺🇸'},
   ];
 

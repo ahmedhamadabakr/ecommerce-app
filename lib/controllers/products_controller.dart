@@ -87,19 +87,15 @@ class ProductsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    print('ProductsController initialized');
     _apiService.init();
-    print('API Service initialized, testing connection...');
     _testConnection();
   }
 
   Future<void> _testConnection() async {
     final isConnected = await _apiService.testConnection();
     if (isConnected) {
-      print('API connection successful, fetching products...');
       fetchProducts();
     } else {
-      print('API connection failed, using dummy data...');
       _loadDummyData();
     }
   }
@@ -151,39 +147,28 @@ class ProductsController extends GetxController {
       loading.value = true;
       error.value = '';
 
-      print('Fetching products from API...');
-      print('Current time: ${DateTime.now()}');
       final response = await _apiService.getAllProducts();
-      print('API Response Status: ${response.statusCode}');
-      print('API Response Data: ${response.data}');
 
       final productsData = response.data;
 
       if (productsData is List) {
-        print('Products data is a List with ${productsData.length} items');
         products.value = productsData
             .map((product) => Product.fromJson(product))
             .toList();
       } else if (productsData is Map && productsData['products'] != null) {
-        print('Products data is a Map with products key');
         products.value = (productsData['products'] as List)
             .map((product) => Product.fromJson(product))
             .toList();
       } else {
-        print('No products found in response');
         products.clear();
       }
 
-      print('Loaded ${products.length} products');
       applyFilters();
     } catch (e) {
       error.value = 'Failed to fetch products: ${e.toString()}';
       products.clear();
-      print('Error fetching products: $e');
-      print('Error type: ${e.runtimeType}');
 
       // Load dummy data if API fails
-      print('Loading dummy data due to API failure...');
       _loadDummyData();
     } finally {
       loading.value = false;
@@ -197,7 +182,6 @@ class ProductsController extends GetxController {
       return Product.fromJson(response.data);
     } catch (e) {
       error.value = 'Failed to fetch product details';
-      print('Error fetching product: $e');
       return null;
     }
   }
@@ -219,7 +203,6 @@ class ProductsController extends GetxController {
       return true;
     } catch (e) {
       error.value = 'Failed to create product';
-      print('Error creating product: $e');
       return false;
     } finally {
       loading.value = false;
@@ -246,7 +229,6 @@ class ProductsController extends GetxController {
       return true;
     } catch (e) {
       error.value = 'Failed to update product';
-      print('Error updating product: $e');
       return false;
     } finally {
       loading.value = false;
@@ -270,7 +252,6 @@ class ProductsController extends GetxController {
       return true;
     } catch (e) {
       error.value = 'Failed to delete product';
-      print('Error deleting product: $e');
       return false;
     } finally {
       loading.value = false;

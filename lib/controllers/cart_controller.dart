@@ -76,8 +76,6 @@ class CartController extends GetxController {
 
       final response = await _apiService.getCart();
       final cartData = response.data;
-
-      print('🔍 CART DEBUG - Cart data: $cartData');
       if (cartData['items'] != null) {
         cartItems.value = (cartData['items'] as List)
             .map((item) => CartItem.fromJson(item))
@@ -88,7 +86,6 @@ class CartController extends GetxController {
     } catch (e) {
       error.value = 'Failed to fetch cart from server: ${e.toString()}';
       cartItems.clear();
-      print('❌ Cart fetch error: $e');
     } finally {
       loading.value = false;
     }
@@ -96,16 +93,10 @@ class CartController extends GetxController {
 
   Future<void> addToCart(String productId, {int quantity = 1}) async {
     final authController = Get.find<AuthController>();
-    
-    print('🔍 CART DEBUG - Starting addToCart');
-    print('🔍 CART DEBUG - ProductId: $productId');
-    print('🔍 CART DEBUG - Quantity: $quantity');
-    print('🔍 CART DEBUG - User authenticated: ${authController.isAuthenticated.value}');
-    print('🔍 CART DEBUG - User ID: ${authController.userId.value}');
-    
+
     if (!authController.isAuthenticated.value) {
       error.value = 'يجب تسجيل الدخول أولاً';
-      print('🔍 CART DEBUG - User not authenticated, redirecting to login');
+
       Get.snackbar(
         'مطلوب تسجيل الدخول',
         'يرجى تسجيل الدخول لإضافة منتجات إلى السلة',
@@ -121,62 +112,59 @@ class CartController extends GetxController {
       loading.value = true;
       error.value = '';
 
-      print('🛒 Adding to cart - ProductId: $productId, Quantity: $quantity');
-      
       // Verify we have valid authentication before proceeding
       final authController = Get.find<AuthController>();
       if (authController.userId.value.isEmpty) {
         throw Exception('User ID is missing - authentication required');
       }
-      
+
       final response = await _apiService.addToCart(productId, quantity);
-      print('🛒 Cart API Response: ${response.data}');
-      print('🛒 Response Status: ${response.statusCode}');
-      
+
       // Check if response is successful
       if (response.statusCode != 200 && response.statusCode != 201) {
         throw Exception('API returned status ${response.statusCode}');
       }
-      
+
       final cartData = response.data;
 
       // Handle mobile API response format
       if (cartData != null) {
-        print('🛒 Processing mobile cart response: $cartData');
-        
         if (cartData is Map<String, dynamic>) {
           // التحقق من نجاح العملية
           final success = cartData['success'] ?? false;
           final items = cartData['items'] as List? ?? [];
-          
+
           if (success) {
-            cartItems.value = items.map((item) => CartItem.fromJson(item)).toList();
-            print('🛒 ✅ Cart successfully updated with ${cartItems.length} items');
-            print('🛒 🗃️ Data saved to database confirmed!');
-            
+            cartItems.value = items
+                .map((item) => CartItem.fromJson(item))
+                .toList();
+
             // تأكيد إضافي على الحفظ
             if (cartData.containsKey('cart') && cartData['cart'] != null) {
-              print('🛒 💾 Cart object saved in database: ${cartData['cart']['_id']}');
+              print(
+                '🛒 💾 Cart object saved in database: ${cartData['cart']['_id']}',
+              );
             }
           } else {
             // فشل في الحفظ لكن لديك البيانات
             print('🛒 ⚠️ API call succeeded but operation failed');
             if (items.isNotEmpty) {
-              cartItems.value = items.map((item) => CartItem.fromJson(item)).toList();
+              cartItems.value = items
+                  .map((item) => CartItem.fromJson(item))
+                  .toList();
             }
             // fallback لجلب البيانات من السيرفر
             await fetchCart();
           }
         } else if (cartData is List) {
           // تنسيق مباشر
-          cartItems.value = cartData.map((item) => CartItem.fromJson(item)).toList();
-          print('🛒 Cart updated from direct array with ${cartItems.length} items');
+          cartItems.value = cartData
+              .map((item) => CartItem.fromJson(item))
+              .toList();
         } else {
-          print('🛒 Unknown response type: ${cartData.runtimeType}');
           await fetchCart();
         }
       } else {
-        print('🛒 Empty response, refreshing cart');
         await fetchCart();
       }
 
@@ -190,10 +178,10 @@ class CartController extends GetxController {
       );
     } catch (e) {
       print('❌ CART ERROR: $e');
-      
+
       // Show detailed error message
       error.value = 'فشل في إضافة المنتج: ${e.toString()}';
-      
+
       Get.snackbar(
         '❌ خطأ في السيرفر',
         'فشل في إضافة المنتج للسلة. تحقق من اتصال السيرفر.',
@@ -240,27 +228,22 @@ class CartController extends GetxController {
           quantity: quantity,
         );
         cartItems.refresh();
-        
-        print('🔄 UI updated immediately - new quantity: $quantity');
       }
 
       loading.value = true;
       error.value = '';
 
-      print('📤 Updating quantity on server: $productId -> $quantity');
       final response = await _apiService.updateCartItem(productId, quantity);
       final cartData = response.data;
 
-      print('✅ Server response: ${response.statusCode}');
-      
       // ✅ تحديث من السيرفر لضمان التطابق
-      if (cartData != null && cartData['success'] == true && cartData['items'] != null) {
+      if (cartData != null &&
+          cartData['success'] == true &&
+          cartData['items'] != null) {
         cartItems.value = (cartData['items'] as List)
             .map((item) => CartItem.fromJson(item))
             .toList();
-        
-        print('🗃️ Cart synced with server - ${cartItems.length} items');
-        
+
         Get.snackbar(
           '✅ تم التحديث',
           'تم تحديث الكمية في السيرفر',
@@ -274,7 +257,7 @@ class CartController extends GetxController {
       // ✅ في حالة الخطأ، أرجع للكمية الأصلية
       print('❌ Failed to update on server: $e');
       await fetchCart(); // إعادة جلب من السيرفر
-      
+
       error.value = 'Failed to update quantity: ${e.toString()}';
       Get.snackbar(
         '❌ فشل التحديث',
@@ -305,32 +288,28 @@ class CartController extends GetxController {
 
     // ✅ حفظ المنتج للإرجاع في حالة الخطأ
     CartItem? itemToRemove;
-    
+
     try {
       // حفظ المنتج قبل الحذف
       itemToRemove = cartItems.firstWhereOrNull((item) => item.id == productId);
-      
+
       // ✅ إزالة فورية من الـ UI
       cartItems.removeWhere((item) => item.id == productId);
       cartItems.refresh();
-      print('🔄 UI updated - item removed immediately');
 
       loading.value = true;
       error.value = '';
 
-      print('📤 Removing from server: $productId');
       final response = await _apiService.removeFromCart(productId);
       final cartData = response.data;
 
-      print('✅ Server response: ${response.statusCode}');
-      
       // ✅ تحديث من السيرفر لضمان التطابق
-      if (cartData != null && cartData['success'] == true && cartData['items'] != null) {
+      if (cartData != null &&
+          cartData['success'] == true &&
+          cartData['items'] != null) {
         cartItems.value = (cartData['items'] as List)
             .map((item) => CartItem.fromJson(item))
             .toList();
-        
-        print('🗃️ Cart synced with server - ${cartItems.length} items');
       }
 
       Get.snackbar(
@@ -343,13 +322,13 @@ class CartController extends GetxController {
       );
     } catch (e) {
       // ✅ في حالة الخطأ، أرجع المنتج للسلة
-      print('❌ Failed to remove from server: $e');
+    
       if (itemToRemove != null) {
         cartItems.add(itemToRemove);
         cartItems.refresh();
-        print('🔄 Item restored to cart due to server error');
+
       }
-      
+
       error.value = 'Failed to remove product from cart: ${e.toString()}';
       Get.snackbar(
         '❌ فشل الحذف',
@@ -394,7 +373,6 @@ class CartController extends GetxController {
       );
     } catch (e) {
       error.value = 'Failed to clear cart';
-      print('Error clearing cart: $e');
     } finally {
       loading.value = false;
     }
@@ -405,7 +383,10 @@ class CartController extends GetxController {
   }
 
   double get totalPrice {
-    return cartItems.fold(0.0, (total, item) => total + (item.price * item.quantity));
+    return cartItems.fold(
+      0.0,
+      (total, item) => total + (item.price * item.quantity),
+    );
   }
 
   bool isInCart(String productId) {
@@ -428,8 +409,4 @@ class CartController extends GetxController {
   Future<void> refreshCart() async {
     await fetchCart();
   }
-
-
-
-
 }
